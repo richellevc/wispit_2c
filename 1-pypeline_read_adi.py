@@ -58,15 +58,21 @@ pipeline.add_module(module)
 module = RemoveLinesModule(name_in=f'cut1',
                            image_in_tag='science',
                            image_out_tag='science_crop',
-                           lines=(470, 470, 470, 470))
+                           lines=(1, 0, 1, 0))
 
 pipeline.add_module(module)
 
 module = RemoveLinesModule(name_in=f'cut2',
                            image_in_tag='flux',
                            image_out_tag='flux_crop',
-                           lines=(470, 470, 470, 470))
+                           lines=(413, 412, 413, 412))
 
+pipeline.add_module(module)
+
+module = StackCubesModule(name_in="mean_flux",
+                              image_in_tag='flux_crop',
+                              image_out_tag='flux_crop_mean',
+                              combine='mean')
 pipeline.add_module(module)
 
 module = PSFpreparationModule(name_in=f'prep',
