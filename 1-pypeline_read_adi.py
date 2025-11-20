@@ -1,24 +1,33 @@
 from pynpoint import *
+from astropy.io import ascii
+from preprocessing_modules import TransmissionModule
+import numpy as np
 
 fwhm = 4.*0.01225  # (arcsec)
 cent_size = fwhm  # (arcsec)
 edge_size = 3.  # (arcsec)
+#edge_size = 13. * 0.01225  # (arcsec) - 13 pix
 #extra_rot = -134.24  # (deg)   # original with christians header
 extra_rot = 0.0  # (deg) - extra rot already taken into account in parang.dat
 aperture = 5.*0.01225  # (arcsec)
 psf_scaling = 6.9*76.42
-pca_number = 5
-position = (65, 29)
+pca_number = 16
+position = (102, 92)
 
-band = "Ks"
+band = "H"
+
+coro_transmission = ascii.read(f'./input/N_ALC_YJH_S-IRDIS_BB_{band}-transmission.dat')
+coro_transmission["sep_as"] = coro_transmission["sep_mas"] / 1000.  # convert to arcsec
 
 science_file = f'./input/{band}/sci.fits'
+ref_file = f'./input/{band}/ref.fits'
 flux_file = f'./input/{band}/flux_cube_summed.fits'
 parang_file = f'./input/{band}/parang.dat'
 
+working_place_in = f'./input/{band}/'
 output_place = f'./output/{band}/'
 
-pipeline = Pypeline('./', './', output_place)
+pipeline = Pypeline(working_place_in, './', output_place)
 
 module = FitsReadingModule(name_in=f'read1',
                            input_dir=None,
@@ -35,6 +44,15 @@ module = FitsReadingModule(name_in=f'read2',
                            overwrite=True,
                            check=False,
                            filenames=[flux_file, ])
+
+pipeline.add_module(module)
+
+module = FitsReadingModule(name_in=f'read3',
+                           input_dir=None,
+                           image_tag='ref',
+                           overwrite=True,
+                           check=False,
+                           filenames=[ref_file, ])
 
 pipeline.add_module(module)
 
@@ -75,9 +93,43 @@ module = StackCubesModule(name_in="mean_flux",
                               combine='mean')
 pipeline.add_module(module)
 
+module = RemoveLinesModule(name_in=f'cut3',
+                           image_in_tag='ref',
+                           image_out_tag='ref_crop',
+                           lines=(1, 0, 1, 0))
+
+pipeline.add_module(module)
+
+module = TransmissionModule(name_in='transmission',
+                            image_in_tag='science_crop',
+                            image_out_tag='science_crop_tc',
+                            transmission=np.array([coro_transmission["sep_as"].data,
+                                                   coro_transmission["transmission"].data]))
+
+pipeline.add_module(module)
+
+module = TransmissionModule(name_in='transmission2',
+                            image_in_tag='ref_crop',
+                            image_out_tag='ref_crop_tc',
+                            transmission=np.array([coro_transmission["sep_as"].data,
+                                                   coro_transmission["transmission"].data]))
+
+pipeline.add_module(module)
+
+
 module = PSFpreparationModule(name_in=f'prep',
-                              image_in_tag='science_crop',
+                              image_in_tag='science_crop_tc',
                               image_out_tag='prep',
+                              mask_out_tag=None,
+                              norm=False,
+                              cent_size=cent_size,
+                              edge_size=edge_size)
+
+pipeline.add_module(module)
+
+module = PSFpreparationModule(name_in=f'prep2',
+                              image_in_tag='ref_crop_tc',
+                              image_out_tag='prep_ref',
                               mask_out_tag=None,
                               norm=False,
                               cent_size=cent_size,
@@ -93,11 +145,30 @@ module = PcaPsfSubtractionModule(name_in=f'pca',
                                  extra_rot=extra_rot,
                                  subtract_mean=True)
 
+#pipeline.add_module(module)
+
+module = PcaPsfSubtractionModule(name_in=f'rdi',
+                                 images_in_tag='prep',
+                                 reference_in_tag='prep_ref',
+                                 res_mean_tag='rdi',
+                                 pca_numbers=range(0, 20),
+                                 extra_rot=extra_rot,
+                                 subtract_mean=True)
+
 pipeline.add_module(module)
 
 module = FitsWritingModule(name_in=f'write1',
                            data_tag=f'pca',
                            file_name=f'pca.fits',
+                           output_dir=None,
+                           data_range=None,
+                           overwrite=True)
+
+#pipeline.add_module(module)
+
+module = FitsWritingModule(name_in=f'write2',
+                           data_tag=f'rdi',
+                           file_name=f'rdi.fits',
                            output_dir=None,
                            data_range=None,
                            overwrite=True)
