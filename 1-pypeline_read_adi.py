@@ -2,19 +2,21 @@ from pynpoint import *
 from astropy.io import ascii
 from preprocessing_modules import TransmissionModule
 import numpy as np
+from scripts.reduction_modules import CircleMaskModule
 
 fwhm = 4.*0.01225  # (arcsec)
-cent_size = fwhm  # (arcsec)
-edge_size = 3.  # (arcsec)
+#cent_size = fwhm  # (arcsec)
+#edge_size = 3.  # (arcsec)
+
+cent_size = 5*0.01225
+edge_size = 13*0.01225
 #edge_size = 13. * 0.01225  # (arcsec) - 13 pix
 #extra_rot = -134.24  # (deg)   # original with christians header
 extra_rot = 0.0  # (deg) - extra rot already taken into account in parang.dat
 aperture = 5.*0.01225  # (arcsec)
-psf_scaling = 6.9*76.42
-pca_number = 16
-position = (102, 92)
 
 band = "H"
+#band = "Ks"
 
 coro_transmission = ascii.read(f'./input/N_ALC_YJH_S-IRDIS_BB_{band}-transmission.dat')
 coro_transmission["sep_as"] = coro_transmission["sep_mas"] / 1000.  # convert to arcsec
@@ -116,9 +118,27 @@ module = TransmissionModule(name_in='transmission2',
 
 pipeline.add_module(module)
 
+module = CircleMaskModule(name_in='mask_science',
+                          image_in_tag='science_crop_tc',
+                          image_out_tag = 'science_crop_tc_masked',
+                          epoch='2025-03-21',   # epoch doesnt matter because circle
+                          both_gaps=True,
+                          mask_out_tag='circle_mask'
+                          )
+pipeline.add_module(module)
+
+module = CircleMaskModule(name_in='mask_ref',
+                          image_in_tag='ref_crop_tc',
+                          image_out_tag = 'ref_crop_tc_masked',
+                          epoch='2025-03-21',   # epoch doesnt matter because circle
+                          both_gaps=True,
+                          mask_out_tag='circle_mask'
+                          )
+pipeline.add_module(module)
+
 
 module = PSFpreparationModule(name_in=f'prep',
-                              image_in_tag='science_crop_tc',
+                              image_in_tag='science_crop_tc_masked',
                               image_out_tag='prep',
                               mask_out_tag=None,
                               norm=False,
@@ -128,7 +148,7 @@ module = PSFpreparationModule(name_in=f'prep',
 pipeline.add_module(module)
 
 module = PSFpreparationModule(name_in=f'prep2',
-                              image_in_tag='ref_crop_tc',
+                              image_in_tag='ref_crop_tc_masked',
                               image_out_tag='prep_ref',
                               mask_out_tag=None,
                               norm=False,
@@ -145,7 +165,7 @@ module = PcaPsfSubtractionModule(name_in=f'pca',
                                  extra_rot=extra_rot,
                                  subtract_mean=True)
 
-#pipeline.add_module(module)
+pipeline.add_module(module)
 
 module = PcaPsfSubtractionModule(name_in=f'rdi',
                                  images_in_tag='prep',
@@ -153,7 +173,7 @@ module = PcaPsfSubtractionModule(name_in=f'rdi',
                                  res_mean_tag='rdi',
                                  pca_numbers=range(0, 20),
                                  extra_rot=extra_rot,
-                                 subtract_mean=True)
+                                 subtract_mean=False)
 
 pipeline.add_module(module)
 
@@ -164,7 +184,7 @@ module = FitsWritingModule(name_in=f'write1',
                            data_range=None,
                            overwrite=True)
 
-#pipeline.add_module(module)
+pipeline.add_module(module)
 
 module = FitsWritingModule(name_in=f'write2',
                            data_tag=f'rdi',
