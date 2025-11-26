@@ -1,6 +1,6 @@
 
 from pynpoint import *
-from scripts.reduction_modules import MCMCsamplingModule_rdi
+from scripts.mcmc_module import MCMCsamplingModule_rdi
 import numpy as np
 
 fwhm = 4.*0.01225  # (arcsec)

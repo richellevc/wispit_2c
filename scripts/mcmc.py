@@ -13,6 +13,7 @@ from typeguard import typechecked
 from pynpoint.util.analysis import fake_planet, merit_function
 from pynpoint.util.psf import pca_psf_subtraction
 from pynpoint.util.residuals import combine_residuals
+from sklearn.decomposition import PCA
 
 
 @typechecked
@@ -20,6 +21,7 @@ def lnprob_rdi(
     param: np.ndarray,
     bounds: Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]],
     images: np.ndarray,
+    ref_data: np.ndarray,
     psf: np.ndarray,
     mask: np.ndarray,
     parang: np.ndarray,
@@ -47,6 +49,8 @@ def lnprob_rdi(
         boundaries is specified as a tuple.
     images : numpy.ndarray
         Stack with images.
+    ref_data : numpy.ndarray
+        Stack with reference image data
     psf : numpy.ndarray
         PSF template, either a single image (2D) or a cube (3D) with the dimensions equal to
         *images*.
@@ -123,7 +127,31 @@ def lnprob_rdi(
         """
 
         sep, ang, mag = param
+        im_shape = images.shape
+        ref_shape = ref_data.shape
 
+        # reshape reference data and select the unmasked pixels
+        ref_reshape = ref_data.reshape(
+            ref_shape[0], ref_shape[1] * ref_shape[2]
+        )
+
+        mean_ref = np.mean(ref_reshape, axis=0)
+        ref_reshape -= mean_ref
+
+        # create the PCA basis
+        sklearn_pca = PCA(n_components=pca_number, svd_solver="arpack")
+        sklearn_pca.fit(ref_reshape)
+
+        # add mean of reference array as 1st PC and orthogonalize it to the PCA basis
+        mean_ref_reshape = mean_ref.reshape((1, mean_ref.shape[0]))
+
+        q_ortho, _ = np.linalg.qr(
+            np.vstack((mean_ref_reshape, sklearn_pca.components_[:-1,])).T
+        )
+
+        sklearn_pca.components_ = q_ortho.T
+
+        # Add fake planet
         fake = fake_planet(
             images=images,
             psf=psf,
@@ -133,11 +161,27 @@ def lnprob_rdi(
             psf_scaling=psf_scaling,
         )
 
+        im_reshape = np.reshape(
+            fake * mask, (im_shape[0], im_shape[1] * im_shape[2])
+        )
+
+        # NO RDI
+        #im_res_rot, im_res_derot = pca_psf_subtraction(
+        #    images=fake * mask,
+        #    angles=-1.0 * parang + extra_rot,
+        #    pca_number=pca_number,
+        #    indices=indices,
+        #)
+
+        #RDI
         im_res_rot, im_res_derot = pca_psf_subtraction(
-            images=fake * mask,
+            images=im_reshape,
             angles=-1.0 * parang + extra_rot,
             pca_number=pca_number,
-            indices=indices,
+            pca_sklearn=sklearn_pca,
+            im_shape=im_shape,
+            #indices=indices,    # maybe this should be none
+            indices=None,  # maybe this should be none
         )
 
         res_stack = combine_residuals(
