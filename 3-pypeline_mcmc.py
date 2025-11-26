@@ -48,10 +48,11 @@ module = MCMCsamplingModule_rdi(
                             reference_in_tag='ref_crop_tc_masked',
                             psf_in_tag='flux_crop_mean',
                             chain_out_tag=f'mcmc_pca_{pca_number:03.0f}',
+                            res_out_tag=f'mcmc_pca_{pca_number:03.0f}_res',
                             param=(sep, ang, mag),
                             bounds=((sep-0.01, sep+0.01), (ang-5., ang+5.), (mag-0.5, mag+0.5)),
-                            nwalkers=10,
-                            nsteps=10,
+                            nwalkers=200,
+                            nsteps=10000,
                             psf_scaling=-psf_scaling,
                             pca_number=pca_number,
                             aperture=(int(np.round(position[0],0)), int(np.round(position[1],0)), aperture),
@@ -61,6 +62,15 @@ module = MCMCsamplingModule_rdi(
                             residuals='mean',
                             resume=False)
 pipeline.add_module(module)
+
+module_mcmc_write = FitsWritingModule(name_in='write_mcmc',
+                                         data_tag=f'mcmc',
+                                         file_name=f'mcmc_{pca_number:03.0f}.fits',
+                                         output_dir=None,
+                                         data_range=None,
+                                         overwrite=True)
+
+pipeline.add_module(module_mcmc_write)
 #pipeline.run_module('mcmc')
 module = SystematicErrorModule(name_in=f'error_pca_{pca_number:03.0f}',
                                image_in_tag='science_crop_tc_masked',

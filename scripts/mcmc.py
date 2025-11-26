@@ -206,3 +206,111 @@ def lnprob_rdi(
         ln_prob = ln_prior + _lnlike()
 
     return ln_prob
+
+@typechecked
+def residuals_rdi(
+        param: np.ndarray,
+        images: np.ndarray,
+        ref_data: np.ndarray,
+        psf: np.ndarray,
+        mask: np.ndarray,
+        parang: np.ndarray,
+        psf_scaling: float,
+        pixscale: float,
+        pca_number: int,
+        extra_rot: float,
+        residuals: str,
+) -> np.ndarray:
+    """
+    Function for storing residuals. Should be placed at the highest level of the
+    Python module to be pickable for the multiprocessing.
+
+    Parameters
+    ----------
+    param : numpy.ndarray
+        The separation (arcsec), angle (deg), and contrast (mag). The angle is measured in
+        counterclockwise direction with respect to the positive y-axis.
+    images : numpy.ndarray
+        Stack with images.
+    ref_data : numpy.ndarray
+        Stack with reference image data
+    psf : numpy.ndarray
+        PSF template, either a single image (2D) or a cube (3D) with the dimensions equal to
+        *images*.
+    mask : numpy.ndarray
+        Array with the circular mask (zeros) of the central and outer regions.
+    parang : numpy.ndarray
+        Array with the angles for derotation.
+    psf_scaling : float
+        Additional scaling factor of the planet flux (e.g., to correct for a neutral density
+        filter). Should be negative in order to inject negative fake planets.
+    pixscale : float
+        Additional scaling factor of the planet flux (e.g., to correct for a neutral density
+        filter). Should be negative in order to inject negative fake planets.
+    pca_number : int
+        Number of principal components used for the PSF subtraction.
+    extra_rot : float
+        Additional rotation angle of the images (deg).
+    residuals : str
+        Method used for combining the residuals ('mean', 'median', 'weighted', or 'clipped').
+
+    Returns
+    -------
+    numpy.ndarray
+        Residuals.
+    """
+
+    sep, ang, mag = param
+    im_shape = images.shape
+    ref_shape = ref_data.shape
+
+    # reshape reference data and select the unmasked pixels
+    ref_reshape = ref_data.reshape(
+        ref_shape[0], ref_shape[1] * ref_shape[2]
+    )
+
+    mean_ref = np.mean(ref_reshape, axis=0)
+    ref_reshape -= mean_ref
+
+    # create the PCA basis
+    sklearn_pca = PCA(n_components=pca_number, svd_solver="arpack")
+    sklearn_pca.fit(ref_reshape)
+
+    # add mean of reference array as 1st PC and orthogonalize it to the PCA basis
+    mean_ref_reshape = mean_ref.reshape((1, mean_ref.shape[0]))
+
+    q_ortho, _ = np.linalg.qr(
+        np.vstack((mean_ref_reshape, sklearn_pca.components_[:-1,])).T
+    )
+
+    sklearn_pca.components_ = q_ortho.T
+
+    # Add fake planet
+    fake = fake_planet(
+        images=images,
+        psf=psf,
+        parang=parang - extra_rot,
+        position=(sep / pixscale, ang),
+        magnitude=mag,
+        psf_scaling=psf_scaling,
+    )
+
+    im_reshape = np.reshape(
+        fake * mask, (im_shape[0], im_shape[1] * im_shape[2])
+    )
+
+    im_res_rot, im_res_derot = pca_psf_subtraction(
+        images=im_reshape,
+        angles=-1.0 * parang + extra_rot,
+        pca_number=pca_number,
+        pca_sklearn=sklearn_pca,
+        im_shape=im_shape,
+        indices=None,  # maybe this should be none
+    )
+
+    res_stack = combine_residuals(
+        method=residuals, res_rot=im_res_derot, residuals=im_res_rot, angles=parang
+    )
+
+    return res_stack
+

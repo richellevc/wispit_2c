@@ -22,7 +22,7 @@ from pynpoint.util.image import (
     polar_to_cartesian,
 )
 from pynpoint.util.mcmc import lnprob
-from scripts.mcmc import lnprob_rdi, residuals_rdi # edited to do rdi
+from scripts.mcmc import lnprob_rdi # edited to do rdi
 from pynpoint.util.module import progress, memory_frames
 
 class MCMCsamplingModule_rdi(ProcessingModule):
@@ -42,7 +42,6 @@ class MCMCsamplingModule_rdi(ProcessingModule):
         image_in_tag: str,
         psf_in_tag: str,
         chain_out_tag: str,
-        res_out_tag: str,
         param: Tuple[float, float, float],
         bounds: Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]],
         nwalkers: int = 100,
@@ -82,11 +81,6 @@ class MCMCsamplingModule_rdi(ProcessingModule):
             The shape of the array is ``(nsteps, nwalkers, 3)``. The
             mean acceptance fraction and the integrated autocorrelation
             time are stored as attributes.
-        res_out_tag : str
-            Tag of the database entry with the image residuals that
-            are written as output. The residuals are stored for each
-            step of the minimization. The last image contains the
-            best-fit residuals.
         param : tuple(float, float, float)
             The approximate separation (arcsec), angle (deg), and
             contrast (mag), for example obtained with the
@@ -186,8 +180,6 @@ class MCMCsamplingModule_rdi(ProcessingModule):
             self.m_reference_in_port = self.add_input_port(reference_in_tag)
 
         self.m_chain_out_port = self.add_output_port(chain_out_tag)
-
-        self.m_res_out_port = self.add_output_port(res_out_tag)
 
         self.m_param = param
         self.m_bounds = bounds
@@ -435,17 +427,7 @@ class MCMCsamplingModule_rdi(ProcessingModule):
             f"+{mag_percen[2]-mag_percen[1]:.2f})"
         )
 
-        residual_im = residuals_rdi(np.array([sep_percen[1], ang_percen[1], mag_percen[1]]), images, ref_data,
-                                    psf, mask, parang, self.m_psf_scaling, pixscale, self.m_pca_number,
-                                    self.m_extra_rot, self.m_residuals)
-
-
         history = f"walkers = {self.m_nwalkers}, steps = {self.m_nsteps}"
-
-        self.m_res_out_port.append(residual_im, data_dim=3)
-        self.m_res_out_port.copy_attributes(self.m_image_in_port)
-        self.m_res_out_port.add_history("MCMCsamplingModule", history)
-
         self.m_chain_out_port.copy_attributes(self.m_image_in_port)
         self.m_chain_out_port.add_history("MCMCsamplingModule", history)
 
@@ -467,5 +449,4 @@ class MCMCsamplingModule_rdi(ProcessingModule):
         self.m_chain_out_port.add_attribute("AUTOCORR_1", autocorr[1], static=True)
         self.m_chain_out_port.add_attribute("AUTOCORR_2", autocorr[2], static=True)
 
-        self.m_res_out_port.close_port()
         self.m_chain_out_port.close_port()
