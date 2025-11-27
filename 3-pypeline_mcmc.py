@@ -1,6 +1,7 @@
 
 from pynpoint import *
 from scripts.mcmc_module import MCMCsamplingModule_rdi
+from scripts.systematic_error_module import SystematicErrorModule_rdi
 import numpy as np
 
 fwhm = 4.*0.01225  # (arcsec)
@@ -38,10 +39,17 @@ pipeline = Pypeline(working_place_in, './', output_place)
 ## pipeline.run_module('read')
 
 simplex = pipeline.get_data(f'fluxpos{pca_number:03.0f}')
-sep = simplex[-1, 2]
-ang = simplex[-1, 3]
-mag = simplex[-1, 4]
+#sep = simplex[-1, 2]
+#ang = simplex[-1, 3]
+#mag = simplex[-1, 4]
+#print(sep, ang, mag)
+
+# results mcmc
+sep = 0.10568
+ang = 195.67
+mag = 7.39
 print(sep, ang, mag)
+
 module = MCMCsamplingModule_rdi(
                             name_in=f'mcmc_pca_{pca_number:03.0f}',
                             image_in_tag='science_crop_tc_masked',
@@ -61,7 +69,7 @@ module = MCMCsamplingModule_rdi(
                             merit='poisson',
                             residuals='mean',
                             resume=False)
-pipeline.add_module(module)
+#pipeline.add_module(module)
 
 module_mcmc_write = FitsWritingModule(name_in='write_mcmc',
                                          data_tag=f'mcmc',
@@ -70,17 +78,20 @@ module_mcmc_write = FitsWritingModule(name_in='write_mcmc',
                                          data_range=None,
                                          overwrite=True)
 
-pipeline.add_module(module_mcmc_write)
+#pipeline.add_module(module_mcmc_write)
 #pipeline.run_module('mcmc')
-module = SystematicErrorModule(name_in=f'error_pca_{pca_number:03.0f}',
+
+module = SystematicErrorModule_rdi(name_in=f'error_pca_{pca_number:03.0f}',
                                image_in_tag='science_crop_tc_masked',
+                               reference_in_tag='ref_crop_tc_masked',
                                psf_in_tag='flux_crop_mean',
                                offset_out_tag='offset',
                                position=(sep, ang),
                                magnitude=mag,
-                               angles=(0., 359., 360),
+                               #angles=(0., 359., 360),
+                               angles=(0., 2., 3),
                                psf_scaling=psf_scaling,
-                               merit='gaussian',
+                               merit='poisson',
                                aperture=aperture,
                                pca_number=pca_number,
                                mask=(cent_size, edge_size),
@@ -88,7 +99,7 @@ module = SystematicErrorModule(name_in=f'error_pca_{pca_number:03.0f}',
                                residuals='mean',
                                offset=3.)
 
-#pipeline.add_module(module)
+pipeline.add_module(module)
 # pipeline.run_module('error')
 
 pipeline.run()
