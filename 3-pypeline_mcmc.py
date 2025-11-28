@@ -88,8 +88,7 @@ module = SystematicErrorModule_rdi(name_in=f'error_pca_{pca_number:03.0f}',
                                offset_out_tag='offset',
                                position=(sep, ang),
                                magnitude=mag,
-                               #angles=(0., 359., 360),
-                               angles=(0., 2., 3),
+                               angles=(0., 359., 360),
                                psf_scaling=psf_scaling,
                                merit='poisson',
                                aperture=aperture,
@@ -97,7 +96,7 @@ module = SystematicErrorModule_rdi(name_in=f'error_pca_{pca_number:03.0f}',
                                mask=(cent_size, edge_size),
                                extra_rot=extra_rot,
                                residuals='mean',
-                               offset=3.)
+                               offset=2.)
 
 pipeline.add_module(module)
 # pipeline.run_module('error')
