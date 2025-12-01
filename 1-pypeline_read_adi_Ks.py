@@ -8,7 +8,7 @@ fwhm = 4.*0.01225  # (arcsec)
 #cent_size = fwhm  # (arcsec)
 #edge_size = 3.  # (arcsec)
 
-cent_size = 5*0.01225
+cent_size = 6*0.01225
 edge_size = 13*0.01225
 #edge_size = 13. * 0.01225  # (arcsec) - 13 pix
 #extra_rot = -134.24  # (deg)   # original with christians header

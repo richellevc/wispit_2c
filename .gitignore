@@ -4,6 +4,9 @@
 masses_cc_*.csv
 masses_cc_*.fits
 
+# species
+data/
+
 # emcee database
 *.h5
 *.h5*
