@@ -6,6 +6,8 @@ masses_cc_*.fits
 
 # species
 data/
+*/data/
+**/data/
 
 # emcee database
 *.h5
